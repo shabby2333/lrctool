@@ -5,6 +5,12 @@ edition = "2021"
 
 [dependencies]
 regex = "1.5"
+clap = { version = "4", features = ["derive"] }
 
 [[bin]]
 name = "lrctool"
+
+[profile.release]
+strip = true  # 自动从二进制文件去除符号信息.
+opt-level = "z"  #  二进制文件大小优化
+lto = true

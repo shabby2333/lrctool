@@ -1,4 +1,4 @@
-use std::env;
+use clap::{Arg, Command, value_parser};
 use std::fs;
 use std::io::{self};
 use regex::Regex;
@@ -13,41 +13,87 @@ struct SubtitleEntry {
 }
 
 fn main() -> io::Result<()> {
-    let args: Vec<String> = env::args().collect();
-    
-    if args.len() != 3 {
-        eprintln!("用法: {} <输入LRC文件> <输出格式(ass|srt)>", args[0]);
-        return Ok(());
-    }
-    
-    let input_file = &args[1];
-    let output_format = &args[2];
-    
+    let matches = Command::new("lrctool")
+        .version("0.1.0")
+        .about("LRC 转 SRT/ASS 字幕工具")
+        .arg(
+            Arg::new("input")
+                .short('i')
+                .long("input")
+                .help("输入 LRC 文件路径")
+                .required(true)
+                .value_parser(value_parser!(String)),
+        )
+        .arg(
+            Arg::new("output")
+                .short('o')
+                .long("output")
+                .help("输出字幕文件路径")
+                .value_parser(value_parser!(String)),
+        )
+        .arg(
+            Arg::new("format")
+                .short('f')
+                .long("format")
+                .help("输出格式: srt 或 ass")
+                .value_parser(["srt", "ass"]),
+        )
+        .get_matches();
+
+    let input_file = matches.get_one::<String>("input").unwrap();
+    let output_file = matches.get_one::<String>("output").map(|s| s.as_str());
+    let format = matches.get_one::<String>("format").map(|s| s.as_str());
+
     // 读取LRC文件
     let content = fs::read_to_string(input_file)?;
-    
     // 解析LRC内容
     let entries = parse_lrc(&content);
-    
-    // 根据格式输出
-    match output_format.as_str() {
+
+    // 决定输出格式和输出文件名
+    let (output_format, output_path) = match (format, output_file) {
+        (Some(fmt), Some(out)) => (fmt, out.to_string()),
+        (Some(fmt), None) => {
+            let ext = format!(".{}", fmt);
+            let out = if input_file.ends_with(".lrc") {
+                input_file.trim_end_matches(".lrc").to_string() + &ext
+            } else {
+                input_file.to_string() + &ext
+            };
+            (fmt, out)
+        },
+        (None, Some(out)) => {
+            if out.ends_with(".ass") {
+                ("ass", out.to_string())
+            } else {
+                ("srt", out.to_string())
+            }
+        },
+        (None, None) => {
+            // 默认 srt
+            let out = if input_file.ends_with(".lrc") {
+                input_file.trim_end_matches(".lrc").to_string() + ".srt"
+            } else {
+                input_file.to_string() + ".srt"
+            };
+            ("srt", out)
+        }
+    };
+
+    match output_format {
         "ass" => {
             let ass_content = convert_to_ass(&entries);
-            let output_file = input_file.replace(".lrc", ".ass");
-            fs::write(&output_file, ass_content)?;
-            println!("已生成ASS字幕文件: {}", output_file);
+            fs::write(&output_path, ass_content)?;
+            println!("已生成ASS字幕文件: {}", output_path);
         },
         "srt" => {
             let srt_content = convert_to_srt(&entries);
-            let output_file = input_file.replace(".lrc", ".srt");
-            fs::write(&output_file, srt_content)?;
-            println!("已生成SRT字幕文件: {}", output_file);
+            fs::write(&output_path, srt_content)?;
+            println!("已生成SRT字幕文件: {}", output_path);
         },
         _ => {
             eprintln!("不支持的输出格式: {}，支持的格式: ass, srt", output_format);
         }
     }
-    
     Ok(())
 }
 
