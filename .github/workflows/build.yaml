@@ -7,6 +7,12 @@ on:
     tags:
       - "v*.*.*" # 当推送符合模式v*.*.*的标签时触发工作流
 
+# 添加默认权限配置
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+
 jobs:
   build:
     runs-on: ${{ matrix.os }} # 定义作业运行的操作系统
